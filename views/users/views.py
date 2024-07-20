@@ -3,7 +3,6 @@ import models
 import fastapi
 import core.security
 import core.validators
-import datetime as dt
 import sqlalchemy
 from . import schemes
 from .utils import get_current_user
@@ -14,12 +13,20 @@ router = fastapi.APIRouter()
 
 
 @router.post('/login', response_model=schemes.TokenResponseModel)
-async def login(response: fastapi.Response, form_data: Annotated[fastapi.security.OAuth2PasswordRequestForm, fastapi.Depends()]):
+async def login(
+    response: fastapi.Response,
+    form_data: Annotated[
+        fastapi.security.OAuth2PasswordRequestForm,
+        fastapi.Depends()]
+):
     login = form_data.username
     password = form_data.password
     user = db.query(models.User).filter(models.User.login == login).first()
 
-    if user is None or not core.security.verify_password(password, user.password):
+    if user is None or not core.security.verify_password(
+        password, user.password
+    ):
+
         raise fastapi.exceptions.HTTPException(
             status_code=fastapi.status.HTTP_401_UNAUTHORIZED,
             detail='Incorrect password or login'
@@ -35,8 +42,11 @@ async def login(response: fastapi.Response, form_data: Annotated[fastapi.securit
 
 
 @router.post('/create', response_model=schemes.CreateUsersResponseModel)
-async def create_users(form_data: schemes.CreateUsersRequestModel,
-                       current_user: Annotated[models.User, fastapi.Depends(get_current_user)]):
+async def create_users(
+        form_data: schemes.CreateUsersRequestModel,
+        current_user: Annotated[
+            models.User, fastapi.Depends(get_current_user)
+        ]):
     if not await core.validators.is_admin(current_user):
         raise fastapi.exceptions.HTTPException(
             status_code=fastapi.status.HTTP_403_FORBIDDEN,
@@ -62,7 +72,8 @@ async def create_users(form_data: schemes.CreateUsersRequestModel,
             max_id += 1
             password = core.security.generate_random_password()
             user_model = models.User(
-                name=name, surname=surname, middlename=middlename, year_of_study=year_of_study, birthdate=birthdate,
+                name=name, surname=surname, middlename=middlename,
+                year_of_study=year_of_study, birthdate=birthdate,
                 login=login,
                 password=core.security.get_password_hash(password),
                 rights=rights
@@ -106,5 +117,6 @@ async def update_token(request: fastapi.Request, response: fastapi.Response):
 
 
 @router.post('/whoami')
-def whoami(current_user: Annotated[models.User, fastapi.Depends(get_current_user)]):
+def whoami(current_user:
+           Annotated[models.User, fastapi.Depends(get_current_user)]):
     return current_user

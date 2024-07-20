@@ -46,7 +46,7 @@ class User(Base):
                            index=True, autoincrement=True, nullable=False)
     login = sqlalchemy.Column(sqlalchemy.String, nullable=False, unique=True)
     password = sqlalchemy.Column(sqlalchemy.String, nullable=False)
-    
+
     name = sqlalchemy.Column(sqlalchemy.VARCHAR(32))
     middlename = sqlalchemy.Column(sqlalchemy.VARCHAR(32))
     surname = sqlalchemy.Column(sqlalchemy.VARCHAR(32))

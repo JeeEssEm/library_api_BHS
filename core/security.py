@@ -1,6 +1,7 @@
 from passlib.context import CryptContext
 import secrets
-from main import PASSWORD_LENGTH, SECRET_KEY, REFRESH_TOKEN_EXPIRES, ACCESS_TOKEN_EXPIRES
+from main import (PASSWORD_LENGTH, SECRET_KEY, REFRESH_TOKEN_EXPIRES,
+                  ACCESS_TOKEN_EXPIRES)
 import datetime as dt
 import jwt
 
@@ -28,7 +29,9 @@ def create_tokens(user_id):
     access_token = jwt.encode(
         {
             'id': user_id,
-            'exp': dt.datetime.utcnow() + dt.timedelta(minutes=ACCESS_TOKEN_EXPIRES)
+            'exp': dt.datetime.utcnow() + dt.timedelta(
+                minutes=ACCESS_TOKEN_EXPIRES
+            )
         },
         algorithm=ALGORITHM,
         key=SECRET_KEY
@@ -36,7 +39,9 @@ def create_tokens(user_id):
     refresh_token = jwt.encode(
         {
             'id': user_id,
-            'exp': dt.datetime.utcnow() + dt.timedelta(days=REFRESH_TOKEN_EXPIRES)
+            'exp': dt.datetime.utcnow() + dt.timedelta(
+                days=REFRESH_TOKEN_EXPIRES
+            )
         },
         algorithm=ALGORITHM,
         key=SECRET_KEY
@@ -49,7 +54,10 @@ def create_tokens(user_id):
 
 
 def decode_token(token):
-    return jwt.decode(token, algorithms=[ALGORITHM], key=SECRET_KEY, verify=False)
+    return jwt.decode(
+        token, algorithms=[ALGORITHM],
+        key=SECRET_KEY, verify=False
+    )
 
 
 def is_valid_token(token):

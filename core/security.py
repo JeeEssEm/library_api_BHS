@@ -1,6 +1,6 @@
 from passlib.context import CryptContext
 import secrets
-from main import (PASSWORD_LENGTH, SECRET_KEY, REFRESH_TOKEN_EXPIRES,
+from config import (PASSWORD_LENGTH, SECRET_KEY, REFRESH_TOKEN_EXPIRES,
                   ACCESS_TOKEN_EXPIRES)
 import datetime as dt
 import jwt

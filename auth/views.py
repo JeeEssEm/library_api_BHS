@@ -1,4 +1,4 @@
-from main import db
+from db import db
 import models
 import fastapi
 import core.security

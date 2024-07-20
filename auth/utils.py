@@ -1,4 +1,4 @@
-from main import db
+from db import db
 import fastapi
 from typing import Annotated
 import core.security

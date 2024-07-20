@@ -116,7 +116,7 @@ async def update_token(request: fastapi.Request, response: fastapi.Response):
     )
 
 
-@router.post('/whoami')
+@router.get('/whoami')
 def whoami(current_user:
            Annotated[models.User, fastapi.Depends(get_current_user)]):
     return current_user

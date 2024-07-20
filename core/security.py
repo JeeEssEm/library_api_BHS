@@ -1,7 +1,7 @@
 from passlib.context import CryptContext
 import secrets
 from config import (PASSWORD_LENGTH, SECRET_KEY, REFRESH_TOKEN_EXPIRES,
-                  ACCESS_TOKEN_EXPIRES)
+                    ACCESS_TOKEN_EXPIRES)
 import datetime as dt
 import jwt
 
@@ -25,26 +25,21 @@ def generate_login(id_):
     return 'sch' + dt.datetime.utcnow().strftime('%Y') + str(id_)
 
 
+def generate_token(user_id, exp):
+    return jwt.encode({
+        'id': user_id,
+        'exp': exp
+    }, algorithm=ALGORITHM, key=SECRET_KEY)
+
+
 def create_tokens(user_id):
-    access_token = jwt.encode(
-        {
-            'id': user_id,
-            'exp': dt.datetime.utcnow() + dt.timedelta(
-                minutes=ACCESS_TOKEN_EXPIRES
-            )
-        },
-        algorithm=ALGORITHM,
-        key=SECRET_KEY
+    access_token = generate_token(
+        user_id,
+        dt.datetime.utcnow() + dt.timedelta(minutes=ACCESS_TOKEN_EXPIRES)
     )
-    refresh_token = jwt.encode(
-        {
-            'id': user_id,
-            'exp': dt.datetime.utcnow() + dt.timedelta(
-                days=REFRESH_TOKEN_EXPIRES
-            )
-        },
-        algorithm=ALGORITHM,
-        key=SECRET_KEY
+    refresh_token = generate_token(
+        user_id,
+        dt.datetime.utcnow() + dt.timedelta(days=REFRESH_TOKEN_EXPIRES)
     )
 
     return {
@@ -56,7 +51,7 @@ def create_tokens(user_id):
 def decode_token(token):
     return jwt.decode(
         token, algorithms=[ALGORITHM],
-        key=SECRET_KEY, verify=False
+        key=SECRET_KEY
     )
 
 

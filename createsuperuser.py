@@ -19,7 +19,7 @@ def main():
 
     try:
         user = User(login=login, password=get_password_hash(password),
-         rights=Rights.admin)
+                    rights=Rights.admin)
         db.add(user)
         db.commit()
         print('Superuser created successfully!')

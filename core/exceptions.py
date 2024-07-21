@@ -18,5 +18,12 @@ class SomethingWentWrongException(fastapi.exceptions.HTTPException):
 class UserDoesNotExistException(fastapi.exceptions.HTTPException):
     def __init__(self) -> None:
         status_code = fastapi.status.HTTP_404_NOT_FOUND
-        detail = 'User does\'t exist!'
+        detail = 'User doesn\'t exist!'
+        super().__init__(status_code, detail)
+
+
+class BookDoesNotExistException(fastapi.exceptions.HTTPException):
+    def __init__(self) -> None:
+        status_code = fastapi.status.HTTP_404_NOT_FOUND
+        detail = 'Book doesn\'t exist!'
         super().__init__(status_code, detail)

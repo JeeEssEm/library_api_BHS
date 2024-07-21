@@ -87,6 +87,11 @@ async def delete_user(user_id: int,
                 detail='User doesn\'t exist!'
             )
         try:
+            if len(q.first().books) != 0:
+                raise fastapi.exceptions.HTTPException(
+                    status_code=fastapi.status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail='User hasn\'t returned all books!'
+                )
             q.delete()
             db.commit()
             return fastapi.status.HTTP_200_OK

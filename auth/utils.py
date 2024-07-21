@@ -20,3 +20,7 @@ async def get_current_user(token:
             status_code=fastapi.status.HTTP_401_UNAUTHORIZED,
             detail='Token expired'
         )
+
+
+async def is_authenticated(request: fastapi.Request):
+    return request.headers.get('Authorization') is not None

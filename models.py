@@ -15,14 +15,14 @@ class Base(sqlalchemy.orm.DeclarativeBase):
 
 BookCarriers = sqlalchemy.Table(
     'BookCarriers',
-    Base.metadata,
+    Base.metadata, 
     sqlalchemy.Column('id', sqlalchemy.Integer, primary_key=True,
                       index=True, autoincrement=True, nullable=False),
     sqlalchemy.Column('book_id',
-                      sqlalchemy.Integer, sqlalchemy.ForeignKey('Book.id')),
+                      sqlalchemy.Integer, sqlalchemy.ForeignKey('Book.id', ondelete='CASCADE')),
     sqlalchemy.Column('user_id',
                       sqlalchemy.Integer, sqlalchemy.ForeignKey('User.id')),
-    sqlalchemy.Column('return_date', sqlalchemy.Date)
+    sqlalchemy.Column('return_date', sqlalchemy.Date),
 )
 
 
@@ -32,11 +32,14 @@ class Book(Base):
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True,
                            index=True, autoincrement=True, nullable=False)
     title = sqlalchemy.Column(sqlalchemy.String)
+    authors = sqlalchemy.Column(sqlalchemy.String)
     description = sqlalchemy.Column(sqlalchemy.Text)
-    edition_date = sqlalchemy.Column(sqlalchemy.Date)
+    edition_date = sqlalchemy.Column(sqlalchemy.Integer)
     amount = sqlalchemy.Column(sqlalchemy.Integer)
     is_private = sqlalchemy.Column(sqlalchemy.Boolean)
     image = sqlalchemy.Column(sqlalchemy.String)
+
+    owners = sqlalchemy.orm.relationship('User', secondary=BookCarriers, cascade='all, delete')
 
 
 class User(Base):

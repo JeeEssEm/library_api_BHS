@@ -10,3 +10,4 @@ REFRESH_TOKEN_EXPIRES = int(os.environ.get('REFRESH_TOKEN_EXPIRE_DAYS',
                                            default=30))
 ACCESS_TOKEN_EXPIRES = int(os.environ.get('ACCESS_TOKEN_EXPIRE_MINUTES',
                                           default=30))
+ITEMS_PER_PAGE = int(os.environ.get('ITEMS_PER_PAGE', default=10))

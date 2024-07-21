@@ -5,7 +5,7 @@ import core.security
 import models
 import jwt
 
-oauth2_scheme = fastapi.security.OAuth2PasswordBearer(tokenUrl='users/login')
+oauth2_scheme = fastapi.security.OAuth2PasswordBearer(tokenUrl='auth/login')
 
 
 async def get_current_user(token:

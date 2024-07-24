@@ -7,6 +7,8 @@ from . import schemes as book_schemes
 from typing import Annotated
 from auth.utils import get_current_user
 from sqlalchemy.orm import Session
+from .utils import save_image, delete_image
+from config import STATIC_PATH
 
 router = fastapi.APIRouter()
 
@@ -30,22 +32,43 @@ async def get_book(book_id: int,
         description=book.description,
         edition_date=book.edition_date,
         in_stock=in_stock,
-        is_private=book.is_private
+        is_private=book.is_private,
     )
+
+
+@router.get('/media/{book_id}', response_class=fastapi.responses.FileResponse)
+async def get_book_image(book_id: int,
+                         current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                         db: Session = fastapi.Depends(get_db)
+                         ):
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not book or (book.is_private and not await core.validators.is_librarian(current_user)):
+        raise core.exceptions.BookDoesNotExistException()
+    if not book.image:
+        return fastapi.exceptions.HTTPException(
+            status_code=fastapi.status.HTTP_404_NOT_FOUND,
+            detail='Image doesn\'t exist')
+    path = STATIC_PATH / 'images' / (book.image + '.webp')
+    return fastapi.responses.FileResponse(path, media_type='image/webp')
 
 
 @router.post('/create_book')
 async def create_book(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                       form: Annotated[book_schemes.BookCreateRequestForm, fastapi.Depends()],
-                      db: Session = fastapi.Depends(get_db)):
+                      image: fastapi.UploadFile,
+                      db: Session = fastapi.Depends(get_db),
+                      ):
     if await core.validators.is_librarian(current_user):
+        filename = await save_image(image)
+
         book = models.Book(
             title=form.title,
             authors=form.authors,
             description=form.description,
             edition_date=form.edition_date,
             is_private=form.is_private,
-            amount=form.amount
+            amount=form.amount,
+            image=filename
         )
         db.add(book)
         db.commit()
@@ -57,18 +80,26 @@ async def create_book(current_user: Annotated[models.User, fastapi.Depends(get_c
 @router.put('/edit/{book_id}')
 async def edit_book(book_id: int,
                     current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                    form: Annotated[book_schemes.BookCreateRequestForm, fastapi.Depends()],
+                    form: Annotated[book_schemes.BookEditRequestForm, fastapi.Depends()],
+                    image: fastapi.UploadFile,
                     db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user):
         book = db.query(models.Book).filter(models.Book.id == book_id).first()
         if book is None:
             raise core.exceptions.BookDoesNotExistException()
-        book.title = form.title
-        book.description = form.description
-        book.amount = form.amount
-        book.authors = form.authors
-        book.is_private = form.is_private
-        book.edition_date = form.edition_date
+
+        if image is not None:
+            if book.image is not None:
+                await delete_image(book.image)
+            filename = await save_image(image)
+            book.image = filename
+
+        book.title = form.title or book.title
+        book.description = form.description or book.description
+        book.amount = form.amount or book.amount
+        book.authors = form.authors or book.authors
+        book.is_private = form.is_private or book.is_private
+        book.edition_date = form.edition_date or book.edition_date
 
         db.add(book)
         db.commit()

@@ -32,7 +32,7 @@ async def login(
 
         raise fastapi.exceptions.HTTPException(
             status_code=fastapi.status.HTTP_401_UNAUTHORIZED,
-            detail=f'Incorrect password or login'
+            detail='Incorrect password or login'
         )
     tokens = core.security.create_tokens(user.id)
     response.set_cookie(key='refresh_token',

@@ -37,7 +37,7 @@ async def edit_user(user_id: int,
                     current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                     form: Annotated[auth_schemes.User, fastapi.Depends()],
                     db: Session = fastapi.Depends(get_db)):
-    
+
     if await core.validators.is_admin(current_user):
         user = db.query(models.User).filter(models.User.id == user_id).first()
         if user is None:
@@ -47,7 +47,7 @@ async def edit_user(user_id: int,
         user.middlename = form.middlename or user.middlename
         user.birthdate = form.birthdate or user.birthdate
         user.year_of_study = form.year_of_study or user.year_of_study
-        user.rights = form.rights or user.rights 
+        user.rights = form.rights or user.rights
         try:
             db.add(user)
             db.commit()

@@ -86,7 +86,6 @@ def test_get_user(test_db):
     assert r2.status_code == 200
 
 
-
 def test_edit_user(test_db):
     login, password, user = create_student()
 

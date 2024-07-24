@@ -1,7 +1,10 @@
-from db import db
+from core.db import get_db
 from models import Rights, User
 from getpass import getpass
 from core.security import get_password_hash
+
+
+db = list(get_db())[0]
 
 
 def main():

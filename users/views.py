@@ -1,7 +1,8 @@
 import fastapi
 from typing import Annotated
 import models
-from db import db
+from core.db import get_db
+from sqlalchemy.orm import Session
 from auth import schemes as auth_schemes
 from auth.utils import get_current_user
 import core.validators
@@ -13,7 +14,8 @@ router = fastapi.APIRouter()
 
 @router.get('/{user_id}', response_model=auth_schemes.User)
 async def get_user(user_id: int,
-                   current_user: Annotated[models.User, fastapi.Depends(get_current_user)]):
+                   current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                   db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user) or user_id == current_user.id:
         user = db.query(models.User).filter(models.User.id == user_id).first()
         if user is None:
@@ -30,19 +32,24 @@ async def get_user(user_id: int,
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.post('/users/edit/{user_id}')
+@router.put('/edit/{user_id}')
 async def edit_user(user_id: int,
                     current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                    form: Annotated[auth_schemes.User, fastapi.Depends()]):
-    if await core.validators.is_admin(current_user) or user_id == current_user.id:
-        current_user.name = form.name
-        current_user.surname = form.surname
-        current_user.middlename = form.middlename
-        current_user.birthdate = form.birthdate
-        current_user.year_of_study = form.year_of_study
-        current_user.rights = form.rights
+                    form: Annotated[auth_schemes.User, fastapi.Depends()],
+                    db: Session = fastapi.Depends(get_db)):
+    
+    if await core.validators.is_admin(current_user):
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if user is None:
+            raise core.exceptions.UserDoesNotExistException()
+        user.name = form.name or user.name
+        user.surname = form.surname or user.surname
+        user.middlename = form.middlename or user.middlename
+        user.birthdate = form.birthdate or user.birthdate
+        user.year_of_study = form.year_of_study or user.year_of_study
+        user.rights = form.rights or user.rights 
         try:
-            db.add(current_user)
+            db.add(user)
             db.commit()
             return fastapi.status.HTTP_200_OK
         except Exception as exc:
@@ -53,7 +60,8 @@ async def edit_user(user_id: int,
 
 @router.post('/search/{page}')
 async def search_user(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                      form: Annotated[auth_schemes.User, fastapi.Depends()], page: int):
+                      form: Annotated[auth_schemes.User, fastapi.Depends()], page: int,
+                      db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user):
         users = db.query(models.User)
         if form.name:
@@ -78,7 +86,8 @@ async def search_user(current_user: Annotated[models.User, fastapi.Depends(get_c
 
 @router.delete('/delete/{user_id}')
 async def delete_user(user_id: int,
-                      current_user: Annotated[models.User, fastapi.Depends(get_current_user)]):
+                      current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                      db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_admin(current_user):
         q = db.query(models.User).filter(models.User.id == user_id)
         if q.first() is None:

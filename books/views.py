@@ -1,19 +1,20 @@
 import fastapi
-from db import db
+from core.db import get_db
 import models
 import core.exceptions
 import core.validators
 from . import schemes as book_schemes
 from typing import Annotated
 from auth.utils import get_current_user
-
+from sqlalchemy.orm import Session
 
 router = fastapi.APIRouter()
 
 
 @router.get('/{book_id}', response_model=book_schemes.BookResponseModel)
 async def get_book(book_id: int,
-                   current_user: Annotated[models.User, fastapi.Depends(get_current_user)]):
+                   current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                   db: Session = fastapi.Depends(get_db)):
     book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not book or (book.is_private and not await core.validators.is_librarian(current_user)):
         raise core.exceptions.BookDoesNotExistException()
@@ -35,7 +36,8 @@ async def get_book(book_id: int,
 
 @router.post('/create_book')
 async def create_book(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                      form: Annotated[book_schemes.BookCreateRequestForm, fastapi.Depends()]):
+                      form: Annotated[book_schemes.BookCreateRequestForm, fastapi.Depends()],
+                      db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user):
         book = models.Book(
             title=form.title,
@@ -55,7 +57,8 @@ async def create_book(current_user: Annotated[models.User, fastapi.Depends(get_c
 @router.put('/edit/{book_id}')
 async def edit_book(book_id: int,
                     current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                    form: Annotated[book_schemes.BookCreateRequestForm, fastapi.Depends()]):
+                    form: Annotated[book_schemes.BookCreateRequestForm, fastapi.Depends()],
+                    db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user):
         book = db.query(models.Book).filter(models.Book.id == book_id).first()
         if book is None:
@@ -75,7 +78,8 @@ async def edit_book(book_id: int,
 
 @router.delete('/delete/{book_id}')
 async def delete_book(book_id: int,
-                      current_user: Annotated[models.User, fastapi.Depends(get_current_user)]):
+                      current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                      db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user):
         book = db.query(models.Book).filter(models.Book.id == book_id)
         if book.first() is None:

@@ -1,4 +1,4 @@
-from db import db
+from core.db import get_db
 import models
 import fastapi
 import core.security
@@ -8,6 +8,7 @@ import sqlalchemy
 from . import schemes
 from .utils import get_current_user
 from typing import Annotated
+from sqlalchemy.orm import Session
 
 
 router = fastapi.APIRouter()
@@ -18,7 +19,8 @@ async def login(
     response: fastapi.Response,
     form_data: Annotated[
         fastapi.security.OAuth2PasswordRequestForm,
-        fastapi.Depends()]
+        fastapi.Depends()],
+        db: Session = fastapi.Depends(get_db)
 ):
     login = form_data.username
     password = form_data.password
@@ -30,7 +32,7 @@ async def login(
 
         raise fastapi.exceptions.HTTPException(
             status_code=fastapi.status.HTTP_401_UNAUTHORIZED,
-            detail='Incorrect password or login'
+            detail=f'Incorrect password or login'
         )
     tokens = core.security.create_tokens(user.id)
     response.set_cookie(key='refresh_token',
@@ -47,7 +49,8 @@ async def create_users(
         form_data: schemes.CreateUsersRequestModel,
         current_user: Annotated[
             models.User, fastapi.Depends(get_current_user)
-        ]):
+        ],
+        db: Session = fastapi.Depends(get_db)):
     if not await core.validators.is_admin(current_user):
         raise core.exceptions.NotEnoughRightsException()
 
@@ -97,11 +100,12 @@ async def create_users(
 
 
 @router.post('/update_token', response_model=schemes.TokenResponseModel)
-async def update_token(request: fastapi.Request, response: fastapi.Response):
+async def update_token(request: fastapi.Request, response: fastapi.Response,
+                       db: Session = fastapi.Depends(get_db)):
     refresh_token = request.cookies.get('refresh_token')
 
     if core.security.is_valid_token(refresh_token):
-        current_user = await get_current_user(refresh_token)
+        current_user = await get_current_user(refresh_token, db)
         tokens = core.security.create_tokens(current_user.id)
         response.headers['Authorization'] = f'Bearer {tokens["access_token"]}'
         return schemes.TokenResponseModel(
@@ -125,14 +129,15 @@ async def whoami(current_user:
         middlename=current_user.middlename or '*******',
         birthdate=current_user.birthdate or '1997-01-01',
         year_of_study=current_user.year_of_study or '11',
-        rights=current_user.rights,
+        rights=current_user.rights or 0,
     )
 
 
 @router.put('/change_password/{user_id}')
 async def change_password(user_id: int,
                           current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                          form: Annotated[schemes.ChangePasswordRequestForm, fastapi.Depends()]):
+                          form: Annotated[schemes.ChangePasswordRequestForm, fastapi.Depends()],
+                          db: Session = fastapi.Depends(get_db)):
 
     if await core.validators.is_admin(current_user):
         user = db.query(models.User).filter(models.User.id == user_id).first()

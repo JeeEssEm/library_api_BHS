@@ -4,9 +4,12 @@ import pytest
 from core.security import get_password_hash, generate_token, create_tokens
 import datetime as dt
 from models import User, Rights
-from test_db import Base, engine, db
+from core.test_db import Base, engine, override_get_db
+from core.db import get_db
 
 client = TestClient(app)
+app.dependency_overrides[get_db] = override_get_db
+db = next(override_get_db())
 
 
 @pytest.fixture()

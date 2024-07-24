@@ -8,5 +8,11 @@ engine = sqlalchemy.create_engine(
 
 Base.metadata.create_all(bind=engine)
 
-SessionLocal = sqlalchemy.orm.sessionmaker(autoflush=False, bind=engine)
-db = SessionLocal()
+
+def get_db():
+    SessionLocal = sqlalchemy.orm.sessionmaker(autoflush=False, bind=engine)
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

@@ -1,15 +1,18 @@
-from db import db
 import fastapi
 from typing import Annotated
 import core.security
 import models
 import jwt
+from sqlalchemy.orm import Session
+from core.db import get_db
 
 oauth2_scheme = fastapi.security.OAuth2PasswordBearer(tokenUrl='auth/login')
 
 
-async def get_current_user(token:
-                           Annotated[str, fastapi.Depends(oauth2_scheme)]):
+async def get_current_user(
+        token:
+        Annotated[str, fastapi.Depends(oauth2_scheme)],
+        db: Annotated[Session, fastapi.Depends(get_db)]):
     try:
         data = core.security.decode_token(token)
         user = db.query(models.User).filter(

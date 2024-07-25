@@ -4,9 +4,8 @@ import fastapi
 import core.security
 import core.validators
 import core.exceptions
-import sqlalchemy
 from . import schemes
-from .utils import get_current_user
+from .utils import get_current_user, create_users
 from typing import Annotated
 from sqlalchemy.orm import Session
 
@@ -45,7 +44,7 @@ async def login(
 
 
 @router.post('/create', response_model=schemes.CreateUsersResponseModel)
-async def create_users(
+async def create_users_route(
         form_data: schemes.CreateUsersRequestModel,
         current_user: Annotated[
             models.User, fastapi.Depends(get_current_user)
@@ -54,46 +53,8 @@ async def create_users(
     if not await core.validators.is_admin(current_user):
         raise core.exceptions.NotEnoughRightsException()
 
-    max_id = db.query(models.User, sqlalchemy.func.max(
-        models.User.id)).first()[1]
-    if not max_id:
-        max_id = 0
-    max_id += 1
-    data = form_data.users
-    result = []
-    for user in data:
-        try:
-            name = user.name
-            surname = user.surname
-            middlename = user.middlename
-            year_of_study = int(user.year_of_study)
-            birthdate = user.birthdate
-            rights = user.rights
+    result = await create_users(form_data.users, db)
 
-            login = core.security.generate_login(max_id)
-            max_id += 1
-            password = core.security.generate_random_password()
-            user_model = models.User(
-                name=name, surname=surname, middlename=middlename,
-                year_of_study=year_of_study, birthdate=birthdate,
-                login=login,
-                password=core.security.get_password_hash(password),
-                rights=rights
-            )
-
-            db.add(user_model)
-            db.commit()
-
-            result.append({
-                'name': name,
-                'middlename': middlename,
-                'surname': surname,
-                'login': login,
-                'password': password
-            })
-
-        except Exception as exc:
-            raise core.exceptions.SomethingWentWrongException(exc)
     return schemes.CreateUsersResponseModel(
         users=result
     )

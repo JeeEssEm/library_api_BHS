@@ -4,11 +4,11 @@ import models
 import core.exceptions
 import core.validators
 from . import schemes as book_schemes
-from typing import Annotated, Optional, List, Union
+from typing import Annotated, Optional, List
 from auth.utils import get_current_user
 from sqlalchemy.orm import Session
 from .utils import (save_image, delete_image, converter_book_scheme,
-                    handle_books_csv, remove_book_image)
+                    handle_books, remove_book_image, handle_csv)
 from config import STATIC_PATH
 from users.utils import paginate
 import os
@@ -174,10 +174,11 @@ async def give_user_book(current_user: Annotated[models.User, fastapi.Depends(ge
 
 
 @router.put('/change_return_date/{relation_id}')
-async def change_return_date(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                             relation_id: int,
-                             form: Annotated[book_schemes.ChangeReturnDateForm, fastapi.Depends()],
-                             db: Session = fastapi.Depends(get_db)):
+async def change_return_date(
+        current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+        relation_id: int,
+        form: Annotated[book_schemes.ChangeReturnDateForm, fastapi.Depends()],
+        db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user):
         relation = db.query(models.BookCarriers)\
             .filter(models.BookCarriers.c.id == relation_id).first()
@@ -197,10 +198,11 @@ async def change_return_date(current_user: Annotated[models.User, fastapi.Depend
 
 
 @router.delete('/remove_book_relation/{relation_id}')
-async def remove_book_relation(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                               relation_id: int,
-                               db: Session = fastapi.Depends(get_db)
-                               ):
+async def remove_book_relation(
+    current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+    relation_id: int,
+    db: Session = fastapi.Depends(get_db)
+):
     if await core.validators.is_librarian(current_user):
         relation = db.query(models.BookCarriers)\
             .filter(models.BookCarriers.c.id == relation_id).first()
@@ -255,7 +257,7 @@ async def search_book(current_user: Annotated[models.User, fastapi.Depends(get_c
         query = query.filter(models.Book.edition_date == form.edition_date)
 
     if not await core.validators.is_librarian(current_user):
-        query = query.filter(models.Book.is_private == False)
+        query = query.filter(models.Book.is_private == False)  # noqa
 
     return paginate(page, query, converter_book_scheme)
 
@@ -263,20 +265,19 @@ async def search_book(current_user: Annotated[models.User, fastapi.Depends(get_c
 @router.post('/load_csv')
 async def load_books(csv_file: fastapi.UploadFile,
                      current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                     images: List[Union[fastapi.UploadFile, None]
-                                  ] = fastapi.File(None, media_type='image/png'),
+                     images: List[fastapi.UploadFile] = fastapi.File(None, media_type='image/png'),
                      db: Session = fastapi.Depends(get_db)):
     """ File format (.csv):
         delimiter = ";"
         Columns (only in this order!):
         ___
-        Title | Authors | Description | Amount | Edition date | image (filename)
+        Title | Authors | Description | Amount | Edition date (year) | image (filename)
     """
     if await core.validators.is_librarian(current_user):
         try:
-            await handle_books_csv(csv_file, db, images)
+            await handle_csv(file=csv_file, handle_func=handle_books, db=db, images=images)
+            return fastapi.status.HTTP_200_OK
         except Exception as exc:
             raise core.exceptions.SomethingWentWrongException(exc)
-        return fastapi.status.HTTP_200_OK
 
     raise core.exceptions.NotEnoughRightsException()

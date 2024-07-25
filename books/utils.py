@@ -52,7 +52,7 @@ async def remove_book_image(filename):
         os.remove(path)
 
 
-async def handle_books_csv(file: UploadFile, db: Session, images: List[Union[UploadFile, None]]):
+async def handle_csv(file: UploadFile, handle_func, **kwargs):
     path = STATIC_PATH / 'temp'
     filename = await generate_filename(path, '.csv')
     path = path / filename
@@ -63,21 +63,27 @@ async def handle_books_csv(file: UploadFile, db: Session, images: List[Union[Upl
             await reader.__anext__()
 
             async for line in reader:
-                title, authors, desc, amount, edition, image_filename = line
-                book = Book(
-                    title=title,
-                    authors=authors,
-                    description=desc,
-                    amount=amount,
-                    edition_date=edition,
-                    is_private=False
-                )
-                if image_filename:
-                    image = list(filter(lambda item: item.filename == image_filename, images))
-                    if image:
-                        filename = await save_image(image[0])
-                        book.image = filename
-                db.add(book)
-                db.commit()
+                if kwargs.get('max_id'):
+                    kwargs['max_id'] += 1
+                await handle_func(line, **kwargs)
     finally:
         os.remove(path)
+
+
+async def handle_books(line: list, db: Session, images: List[Union[UploadFile, None]]):
+    title, authors, desc, amount, edition, image_filename = line
+    book = Book(
+        title=title,
+        authors=authors,
+        description=desc,
+        amount=amount,
+        edition_date=edition,
+        is_private=False
+    )
+    if image_filename:
+        image = list(filter(lambda item: item.filename == image_filename, images))
+        if image:
+            filename = await save_image(image[0])
+            book.image = filename
+    db.add(book)
+    db.commit()

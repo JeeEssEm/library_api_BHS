@@ -1,5 +1,8 @@
 from . import schemes
 from config import ITEMS_PER_PAGE
+from sqlalchemy.orm import Session
+from auth.utils import create_user, get_max_user_id
+import datetime as dt
 
 
 def paginate(page, query, scheme_converter):
@@ -20,3 +23,13 @@ def converter_user_search(user_model):
         middlename=user_model.middlename or '*******',
         rights=user_model.rights
     )
+
+
+async def handle_users(line: list, db: Session, result: list):
+    max_id = await get_max_user_id(db)
+    user = dict(zip(['name', 'middlename', 'surname', 'birthdate', 'year_of_study'], line))
+    if '.' in user['birthdate']:
+        user['birthdate'] = dt.datetime.strptime(user['birthdate'], '%d.%m.%Y').date()
+    else:
+        user['birthdate'] = dt.datetime.fromisoformat(user['birthdate']).date()
+    result.append(await create_user(user, db, max_id))

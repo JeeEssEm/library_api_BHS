@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 from auth import schemes as auth_schemes
 from auth.utils import get_current_user
 import core.validators
-from .utils import paginate, converter_user_search
+from .utils import paginate, converter_user_search, handle_users
 import core.exceptions
+from books.utils import handle_csv
 
 router = fastapi.APIRouter()
 
@@ -104,6 +105,27 @@ async def delete_user(user_id: int,
             q.delete()
             db.commit()
             return fastapi.status.HTTP_200_OK
+        except Exception as exc:
+            raise core.exceptions.SomethingWentWrongException(exc)
+
+    raise core.exceptions.NotEnoughRightsException()
+
+
+@router.post('/load_csv')
+async def load_users_csv(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                         csv_file: fastapi.UploadFile,
+                         db: Session = fastapi.Depends(get_db)):
+    """ File format (.csv):
+    delimiter = ";"
+    Columns (only in this order!):
+    ___
+    Name | Middlename | Surname | birthdate ({year}-{month}-{day} or {day}.{month}.{year}) | year_of_study  # noqa
+    """
+    if await core.validators.is_admin(current_user):
+        try:
+            result = []
+            await handle_csv(file=csv_file, handle_func=handle_users, db=db, result=result)
+            return result
         except Exception as exc:
             raise core.exceptions.SomethingWentWrongException(exc)
 

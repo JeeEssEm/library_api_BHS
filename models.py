@@ -19,7 +19,7 @@ BookCarriers = sqlalchemy.Table(
     sqlalchemy.Column('id', sqlalchemy.Integer, primary_key=True,
                       index=True, autoincrement=True, nullable=False),
     sqlalchemy.Column('book_id',
-                      sqlalchemy.Integer, sqlalchemy.ForeignKey('Book.id', ondelete='CASCADE')),
+                      sqlalchemy.Integer, sqlalchemy.ForeignKey('Book.id')),
     sqlalchemy.Column('user_id',
                       sqlalchemy.Integer, sqlalchemy.ForeignKey('User.id')),
     sqlalchemy.Column('return_date', sqlalchemy.Date),
@@ -39,7 +39,7 @@ class Book(Base):
     is_private = sqlalchemy.Column(sqlalchemy.Boolean)
     image = sqlalchemy.Column(sqlalchemy.String)
 
-    # owners = sqlalchemy.orm.relationship('User', secondary=BookCarriers, cascade='all, delete')
+    owners = sqlalchemy.orm.relationship('User', secondary=BookCarriers)
 
 
 class User(Base):

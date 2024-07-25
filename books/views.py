@@ -4,11 +4,14 @@ import models
 import core.exceptions
 import core.validators
 from . import schemes as book_schemes
-from typing import Annotated
+from typing import Annotated, Optional, List, Union
 from auth.utils import get_current_user
 from sqlalchemy.orm import Session
-from .utils import save_image, delete_image
+from .utils import (save_image, delete_image, converter_book_scheme,
+                    handle_books_csv, remove_book_image)
 from config import STATIC_PATH
+from users.utils import paginate
+import os
 
 router = fastapi.APIRouter()
 
@@ -42,25 +45,38 @@ async def get_book_image(book_id: int,
                          db: Session = fastapi.Depends(get_db)
                          ):
     book = db.query(models.Book).filter(models.Book.id == book_id).first()
+
     if not book or (book.is_private and not await core.validators.is_librarian(current_user)):
         raise core.exceptions.BookDoesNotExistException()
+
     if not book.image:
-        return fastapi.exceptions.HTTPException(
+        path = STATIC_PATH / 'images' / 'not_found.webp'
+        if os.path.exists(path):
+            return fastapi.responses.FileResponse(path, media_type='image/webp')
+
+        raise fastapi.exceptions.HTTPException(
             status_code=fastapi.status.HTTP_404_NOT_FOUND,
             detail='Image doesn\'t exist')
-    path = STATIC_PATH / 'images' / (book.image + '.webp')
-    return fastapi.responses.FileResponse(path, media_type='image/webp')
+
+    path = STATIC_PATH / 'images' / book.image
+    ext = book.image.split('.')[-1]
+
+    if os.path.exists(path):
+        return fastapi.responses.FileResponse(path, media_type=f'image/{ext}')
+
+    raise fastapi.exceptions.HTTPException(
+        status_code=fastapi.status.HTTP_404_NOT_FOUND,
+        detail='Image doesn\'t exist')
 
 
 @router.post('/create_book')
 async def create_book(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                       form: Annotated[book_schemes.BookCreateRequestForm, fastapi.Depends()],
-                      image: fastapi.UploadFile,
+                      image: Optional[fastapi.UploadFile] = fastapi.File(
+                          None, media_type='image/webp'),
                       db: Session = fastapi.Depends(get_db),
                       ):
     if await core.validators.is_librarian(current_user):
-        filename = await save_image(image)
-
         book = models.Book(
             title=form.title,
             authors=form.authors,
@@ -68,8 +84,12 @@ async def create_book(current_user: Annotated[models.User, fastapi.Depends(get_c
             edition_date=form.edition_date,
             is_private=form.is_private,
             amount=form.amount,
-            image=filename
         )
+
+        if image:
+            filename = await save_image(image)
+            book.image = filename
+
         db.add(book)
         db.commit()
         return fastapi.status.HTTP_200_OK
@@ -81,7 +101,8 @@ async def create_book(current_user: Annotated[models.User, fastapi.Depends(get_c
 async def edit_book(book_id: int,
                     current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                     form: Annotated[book_schemes.BookEditRequestForm, fastapi.Depends()],
-                    image: fastapi.UploadFile,
+                    image: Optional[fastapi.UploadFile] = fastapi.File(
+                        None, media_type='image/webp'),
                     db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user):
         book = db.query(models.Book).filter(models.Book.id == book_id).first()
@@ -112,16 +133,150 @@ async def delete_book(book_id: int,
                       current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                       db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user):
-        book = db.query(models.Book).filter(models.Book.id == book_id)
-        if book.first() is None:
+        query = db.query(models.Book).filter(models.Book.id == book_id)
+        book = query.first()
+        if book is None:
             raise core.exceptions.BookDoesNotExistException()
-        if len(book.first().owners) != 0:
+        if len(book.owners) != 0:
             raise fastapi.exceptions.HTTPException(
                 status_code=fastapi.status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail='Book has owners!'
             )
-        book.delete()
+        if book.image:
+            await remove_book_image(book.image)
+        query.delete()
         db.commit()
+        return fastapi.status.HTTP_200_OK
+
+    raise core.exceptions.NotEnoughRightsException()
+
+
+@router.post('/give_book')
+async def give_user_book(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                         form: Annotated[book_schemes.GiveReturnBookForm, fastapi.Depends()],
+                         db: Session = fastapi.Depends(get_db)
+                         ):
+    if await core.validators.is_librarian(current_user):
+        user = db.query(models.User).filter(models.User.id == form.user_id).first()
+        book = db.query(models.Book).filter(models.Book.id == form.book_id).first()
+
+        if not user:
+            raise core.exceptions.UserDoesNotExistException()
+        if not book:
+            raise core.exceptions.BookDoesNotExistException()
+        query = models.BookCarriers.insert().values(
+            book_id=book.id, user_id=user.id, return_date=form.return_date)
+        db.execute(query)
+        db.commit()
+        return fastapi.status.HTTP_200_OK
+
+    raise core.exceptions.NotEnoughRightsException()
+
+
+@router.put('/change_return_date/{relation_id}')
+async def change_return_date(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                             relation_id: int,
+                             form: Annotated[book_schemes.ChangeReturnDateForm, fastapi.Depends()],
+                             db: Session = fastapi.Depends(get_db)):
+    if await core.validators.is_librarian(current_user):
+        relation = db.query(models.BookCarriers)\
+            .filter(models.BookCarriers.c.id == relation_id).first()
+        if not relation:
+            raise fastapi.exceptions.HTTPException(
+                status_code=fastapi.status.HTTP_404_NOT_FOUND,
+                detail='Relationship doesn\'t exist!'
+            )
+        query = models.BookCarriers.update().where(
+            models.BookCarriers.c.id == relation_id
+        ).values(return_date=form.return_date)
+        db.execute(query)
+        db.commit()
+        return fastapi.status.HTTP_200_OK
+
+    raise core.exceptions.NotEnoughRightsException()
+
+
+@router.delete('/remove_book_relation/{relation_id}')
+async def remove_book_relation(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                               relation_id: int,
+                               db: Session = fastapi.Depends(get_db)
+                               ):
+    if await core.validators.is_librarian(current_user):
+        relation = db.query(models.BookCarriers)\
+            .filter(models.BookCarriers.c.id == relation_id).first()
+        if not relation:
+            raise fastapi.exceptions.HTTPException(
+                status_code=fastapi.status.HTTP_404_NOT_FOUND,
+                detail='Relationship doesn\'t exist!'
+            )
+        query = models.BookCarriers.delete().where(
+            models.BookCarriers.c.id == relation_id
+        )
+        db.execute(query)
+        db.commit()
+        return fastapi.status.HTTP_200_OK
+
+    raise core.exceptions.NotEnoughRightsException()
+
+
+@router.get('/user/{user_id}', response_model=book_schemes.BookListForm)
+async def get_user_books(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                         user_id: int,
+                         db: Session = fastapi.Depends(get_db)):
+    if await core.validators.is_librarian(current_user):
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not user:
+            raise core.exceptions.UserDoesNotExistException()
+        result = book_schemes.BookListForm(books=[])
+        for book in user.books:
+            result.books.append(book_schemes.ShortBookForm(
+                id=book.id,
+                title=book.title,
+                authors=book.authors,
+                edition_date=book.edition_date,
+            ))
+        return result
+
+    raise core.exceptions.NotEnoughRightsException()
+
+
+@router.post('/search/{page}')
+async def search_book(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                      form: Annotated[book_schemes.SearchBookForm, fastapi.Depends()],
+                      page: int,
+                      db: Session = fastapi.Depends(get_db)
+                      ):
+    query = db.query(models.Book)
+    if form.title:
+        query = query.filter(models.Book.title.like(f'%{form.title}%'))
+    if form.authors:
+        query = query.filter(models.Book.authors.like(f'%{form.authors}%'))
+    if form.edition_date:
+        query = query.filter(models.Book.edition_date == form.edition_date)
+
+    if not await core.validators.is_librarian(current_user):
+        query = query.filter(models.Book.is_private == False)
+
+    return paginate(page, query, converter_book_scheme)
+
+
+@router.post('/load_csv')
+async def load_books(csv_file: fastapi.UploadFile,
+                     current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+                     images: List[Union[fastapi.UploadFile, None]
+                                  ] = fastapi.File(None, media_type='image/png'),
+                     db: Session = fastapi.Depends(get_db)):
+    """ File format (.csv):
+        delimiter = ";"
+        Columns (only in this order!):
+        ___
+        Title | Authors | Description | Amount | Edition date | image (filename)
+    """
+    if await core.validators.is_librarian(current_user):
+        try:
+            await handle_books_csv(csv_file, db, images)
+        except Exception as exc:
+            raise core.exceptions.SomethingWentWrongException(exc)
         return fastapi.status.HTTP_200_OK
 
     raise core.exceptions.NotEnoughRightsException()

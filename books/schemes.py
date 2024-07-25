@@ -1,6 +1,7 @@
 import pydantic
 import typing
 from fastapi import UploadFile
+import datetime as dt
 
 
 class BookResponseModel(pydantic.BaseModel):
@@ -30,3 +31,30 @@ class BookEditRequestForm(pydantic.BaseModel):
     amount: typing.Optional[int] = None
     is_private: typing.Optional[bool] = None
     image: typing.Optional[UploadFile] = None
+
+
+class GiveReturnBookForm(pydantic.BaseModel):
+    user_id: int
+    book_id: int
+    return_date: dt.date
+
+
+class ChangeReturnDateForm(pydantic.BaseModel):
+    return_date: dt.date
+
+
+class ShortBookForm(pydantic.BaseModel):
+    id: int
+    title: str
+    authors: str
+    edition_date: int
+
+
+class BookListForm(pydantic.BaseModel):
+    books: typing.List[ShortBookForm]
+
+
+class SearchBookForm(pydantic.BaseModel):
+    title: typing.Optional[str] = None
+    authors: typing.Optional[str] = None
+    edition_date: typing.Optional[int] = None

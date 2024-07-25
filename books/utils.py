@@ -3,7 +3,7 @@ from config import STATIC_PATH
 import os
 import uuid
 from . import schemes
-from aiocsv import AsyncReader
+from aiocsv import AsyncReader, AsyncWriter
 from fastapi import UploadFile
 from typing import List, Union
 from sqlalchemy.orm import Session
@@ -87,3 +87,33 @@ async def handle_books(line: list, db: Session, images: List[Union[UploadFile, N
             book.image = filename
     db.add(book)
     db.commit()
+
+
+async def write_to_csv(query, func, header, **kwargs):
+    path = STATIC_PATH / 'temp'
+    filename = await generate_filename(path, '.csv')
+    path = path / filename
+
+    async with aiofiles.open(path, mode='w', newline='', encoding='utf_8_sig') as out:
+        writer = AsyncWriter(out, delimiter=';', quotechar='"')
+        await writer.writerow(header)
+        for item in query:
+            await writer.writerow(await func(item, **kwargs))
+
+    return path
+
+
+async def book_write_func(book: Book):
+    return [
+        book.title,
+        book.authors,
+        book.description,
+        book.amount,
+        book.edition_date,
+        book.image
+    ]
+
+
+def remove_file(path):
+    if os.path.exists(path):
+        os.remove(path)

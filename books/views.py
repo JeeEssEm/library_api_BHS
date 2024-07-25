@@ -8,7 +8,8 @@ from typing import Annotated, Optional, List
 from auth.utils import get_current_user
 from sqlalchemy.orm import Session
 from .utils import (save_image, delete_image, converter_book_scheme,
-                    handle_books, remove_book_image, handle_csv)
+                    handle_books, remove_book_image, handle_csv, write_to_csv, book_write_func,
+                    remove_file)
 from config import STATIC_PATH
 from users.utils import paginate
 import os
@@ -16,7 +17,7 @@ import os
 router = fastapi.APIRouter()
 
 
-@router.get('/{book_id}', response_model=book_schemes.BookResponseModel)
+@router.get('/info/{book_id}', response_model=book_schemes.BookResponseModel)
 async def get_book(book_id: int,
                    current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                    db: Session = fastapi.Depends(get_db)):
@@ -277,6 +278,30 @@ async def load_books(csv_file: fastapi.UploadFile,
         try:
             await handle_csv(file=csv_file, handle_func=handle_books, db=db, images=images)
             return fastapi.status.HTTP_200_OK
+        except Exception as exc:
+            raise core.exceptions.SomethingWentWrongException(exc)
+
+    raise core.exceptions.NotEnoughRightsException()
+
+
+@router.get('/books_csv')
+async def get_books_csv(
+    current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+    background_tasks: fastapi.BackgroundTasks,
+    db: Session = fastapi.Depends(get_db),
+):
+    """ Out file format:
+    ___
+    Title | Authors | Description | Amount | Edition date (year) | image (filename)
+    """
+    if await core.validators.is_librarian(current_user):
+        books = db.query(models.Book).all()
+        header = ['Title',  'Authors', 'Description', 'Amount', 'Edition date', 'image']
+        try:
+            path = await write_to_csv(books, book_write_func, header)
+            background_tasks.add_task(remove_file, path)
+            return fastapi.responses.FileResponse(path, media_type='text/csv')
+
         except Exception as exc:
             raise core.exceptions.SomethingWentWrongException(exc)
 

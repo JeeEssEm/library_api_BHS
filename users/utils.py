@@ -3,6 +3,7 @@ from config import ITEMS_PER_PAGE
 from sqlalchemy.orm import Session
 from auth.utils import create_user, get_max_user_id
 import datetime as dt
+from models import User
 
 
 def paginate(page, query, scheme_converter):
@@ -33,3 +34,15 @@ async def handle_users(line: list, db: Session, result: list):
     else:
         user['birthdate'] = dt.datetime.fromisoformat(user['birthdate']).date()
     result.append(await create_user(user, db, max_id))
+
+
+async def user_write_func(user: User):
+    return [
+        user.login,
+        user.name,
+        user.middlename,
+        user.surname,
+        user.birthdate,
+        user.year_of_study,
+        user.rights
+    ]

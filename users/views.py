@@ -6,14 +6,15 @@ from sqlalchemy.orm import Session
 from auth import schemes as auth_schemes
 from auth.utils import get_current_user
 import core.validators
-from .utils import paginate, converter_user_search, handle_users
+from .utils import paginate, converter_user_search, handle_users, user_write_func
+from books.utils import write_to_csv, remove_file
 import core.exceptions
 from books.utils import handle_csv
 
 router = fastapi.APIRouter()
 
 
-@router.get('/{user_id}', response_model=auth_schemes.User)
+@router.get('/info/{user_id}', response_model=auth_schemes.User)
 async def get_user(user_id: int,
                    current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                    db: Session = fastapi.Depends(get_db)):
@@ -111,7 +112,7 @@ async def delete_user(user_id: int,
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.post('/load_csv')
+@router.post('/load_csv', response_model=auth_schemes.CreateUsersResponseModel)
 async def load_users_csv(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                          csv_file: fastapi.UploadFile,
                          db: Session = fastapi.Depends(get_db)):
@@ -119,7 +120,7 @@ async def load_users_csv(current_user: Annotated[models.User, fastapi.Depends(ge
     delimiter = ";"
     Columns (only in this order!):
     ___
-    Name | Middlename | Surname | birthdate ({year}-{month}-{day} or {day}.{month}.{year}) | year_of_study  # noqa
+    Name | Middlename | Surname | Birthdate (2000-12-30 or 30.12.2000) | year_of_study
     """
     if await core.validators.is_admin(current_user):
         try:
@@ -128,5 +129,21 @@ async def load_users_csv(current_user: Annotated[models.User, fastapi.Depends(ge
             return result
         except Exception as exc:
             raise core.exceptions.SomethingWentWrongException(exc)
+
+    raise core.exceptions.NotEnoughRightsException()
+
+
+@router.get('/profiles_csv')
+async def get_users_profiles(
+    current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+    background_tasks: fastapi.BackgroundTasks,
+    db: Session = fastapi.Depends(get_db)
+):
+    if await core.validators.is_admin(current_user):
+        users = db.query(models.User).all()
+        header = ['login', 'Name', 'Middlename', 'Surname', 'Birthdate', 'Year_of_study']
+        path = await write_to_csv(users, user_write_func, header)
+        background_tasks.add_task(remove_file, path)
+        return fastapi.responses.FileResponse(path, media_type='text/csv')
 
     raise core.exceptions.NotEnoughRightsException()

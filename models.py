@@ -39,7 +39,7 @@ class Book(Base):
     is_private = sqlalchemy.Column(sqlalchemy.Boolean)
     image = sqlalchemy.Column(sqlalchemy.String)
 
-    owners = sqlalchemy.orm.relationship('User', secondary=BookCarriers)
+    owners = sqlalchemy.orm.relationship('User', secondary=BookCarriers, back_populates='books')
 
 
 class User(Base):
@@ -57,4 +57,4 @@ class User(Base):
     year_of_study = sqlalchemy.Column(sqlalchemy.Integer)
     rights = sqlalchemy.Column(sqlalchemy.Enum(Rights))
 
-    books = sqlalchemy.orm.relationship('Book', secondary=BookCarriers)
+    books = sqlalchemy.orm.relationship('Book', secondary=BookCarriers, back_populates='owners')

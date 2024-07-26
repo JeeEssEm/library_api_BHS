@@ -13,6 +13,7 @@ from .utils import (save_image, delete_image, converter_book_scheme,
 from config import STATIC_PATH
 from users.utils import paginate
 import os
+from core.search.cruds import BookCRUD as BookSearchCRUD
 
 router = fastapi.APIRouter()
 
@@ -93,6 +94,14 @@ async def create_book(current_user: Annotated[models.User, fastapi.Depends(get_c
 
         db.add(book)
         db.commit()
+
+        BookSearchCRUD().create({
+            'id': book.id,
+            'title': book.title,
+            'description': book.description,
+            'authors': book.authors
+        })
+
         return fastapi.status.HTTP_200_OK
 
     raise core.exceptions.NotEnoughRightsException()
@@ -145,8 +154,10 @@ async def delete_book(book_id: int,
             )
         if book.image:
             await remove_book_image(book.image)
+        BookSearchCRUD().delete(book.id)
         query.delete()
         db.commit()
+
         return fastapi.status.HTTP_200_OK
 
     raise core.exceptions.NotEnoughRightsException()
@@ -245,22 +256,25 @@ async def get_user_books(current_user: Annotated[models.User, fastapi.Depends(ge
 
 @router.post('/search/{page}')
 async def search_book(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                      form: Annotated[book_schemes.SearchBookForm, fastapi.Depends()],
+                      #   form: Annotated[book_schemes.SearchBookForm, fastapi.Depends()],
+                      query: str,
                       page: int,
+                      edition_date: Optional[int] = None,
                       db: Session = fastapi.Depends(get_db)
                       ):
-    query = db.query(models.Book)
-    if form.title:
-        query = query.filter(models.Book.title.like(f'%{form.title}%'))
-    if form.authors:
-        query = query.filter(models.Book.authors.like(f'%{form.authors}%'))
-    if form.edition_date:
-        query = query.filter(models.Book.edition_date == form.edition_date)
+    ids = BookSearchCRUD().search(query)
+    book_query = db.query(models.Book)
+    if ids:
+        book_query = book_query.filter(models.Book.id.in_(ids))
+        if edition_date:
+            book_query = book_query.filter(models.Book.edition_date == edition_date)
 
-    if not await core.validators.is_librarian(current_user):
-        query = query.filter(models.Book.is_private == False)  # noqa
+        if not await core.validators.is_librarian(current_user):
+            book_query = book_query.filter(models.Book.is_private == False)  # noqa
+    else:
+        book_query = book_query.filter(False)
 
-    return paginate(page, query, converter_book_scheme)
+    return paginate(page, book_query, converter_book_scheme)
 
 
 @router.post('/load_csv')
@@ -306,3 +320,27 @@ async def get_books_csv(
             raise core.exceptions.SomethingWentWrongException(exc)
 
     raise core.exceptions.NotEnoughRightsException()
+
+
+@router.get('/test')
+async def test(
+    current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+    query: str
+):
+    tokens = query.split()
+    clauses = [
+        {
+            'span_multi': {
+                'match': {'fuzzy': {"name": {'value': token, 'fuzziness': 'AUTO'}}}
+            }
+        }
+        for token in tokens
+    ]
+    payload = {
+        'bool': {
+            'must': [{'span_near': {'clauses': clauses, 'slop': 0, 'in_order': False}}]
+        }
+    }
+    resp = es.search(index='', query=payload, size=10)
+    return [result['_source']['name'] for result in resp['hits']['hits']]
+

@@ -10,6 +10,7 @@ from .utils import paginate, converter_user_search, handle_users, user_write_fun
 from books.utils import write_to_csv, remove_file
 import core.exceptions
 from books.utils import handle_csv
+from core.search.schemes import user_index, user_searcher
 
 router = fastapi.APIRouter()
 
@@ -62,24 +63,23 @@ async def edit_user(user_id: int,
 
 @router.post('/search/{page}')
 async def search_user(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                      form: Annotated[auth_schemes.User, fastapi.Depends()], page: int,
+                      query: str,
+                      year_of_study: int,
+                      page: int,
                       db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user):
-        users = db.query(models.User)
-        if form.name:
-            users = users.filter(models.User.name.like(f'%{form.name}%'))
-        if form.surname:
-            users = users.filter(models.User.surname.like(f'%{form.surname}%'))
-        if form.middlename:
-            users = users.filter(models.User.middlename.like(f'%{form.middlename}%'))
+        q = user_index.parse_query(query)
+        hits = user_searcher.search(q).hits
 
-        if form.birthdate:
-            users = users.filter(models.User.birthdate.like(f'%{form.birthdate}%'))
-        if form.year_of_study:
-            users = users.filter(models.User.year_of_study == form.year_of_study)
-
-        if await core.validators.is_admin(current_user) and form.rights:
-            users = users.filter(models.User.rights == form.rights)
+        users_query = db.query(models.User)
+        if hits:
+            ids = list(map(lambda item: user_searcher.doc(item[1])['id'][0], hits))
+            users_query = users_query.filter(models.User.id.in_(ids))
+            
+            if year_of_study:
+                users = users.filter(models.User.year_of_study == year_of_study)
+        else:
+            users_query = users_query.filter(False)
 
         return paginate(page, users, converter_user_search)
 

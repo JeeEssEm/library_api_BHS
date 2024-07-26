@@ -15,4 +15,4 @@ ITEMS_PER_PAGE = int(os.environ.get('ITEMS_PER_PAGE', default=10))
 STATIC_PATH = pathlib.Path(__file__).resolve().parent / os.environ.get('STATIC_PATH',
                                                                        default='static')
 SEARCHER_PATH = pathlib.Path(__file__).resolve().parent / os.environ.get('SEARCHER_PATH',
-                                                                       default='static')
+                                                                         default='static')

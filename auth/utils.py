@@ -6,6 +6,7 @@ import jwt
 from sqlalchemy.orm import Session
 import sqlalchemy
 from core.db import get_db
+from core.search.cruds import UserCRUD as UserSearchCRUD
 
 oauth2_scheme = fastapi.security.OAuth2PasswordBearer(tokenUrl='auth/login')
 
@@ -51,6 +52,14 @@ async def create_user(user, db, max_id):
 
         db.add(user_model)
         db.commit()
+
+        UserSearchCRUD().create({
+            'id': str(max_id),
+            'name': name,
+            'middlename': middlename,
+            'surname': surname,
+            'login': login,
+        })
 
         return {
             'name': name,

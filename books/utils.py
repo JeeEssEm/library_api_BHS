@@ -8,6 +8,7 @@ from fastapi import UploadFile
 from typing import List, Union
 from sqlalchemy.orm import Session
 from models import Book
+from core.search.cruds import BookCRUD as BookSearchCRUD
 
 
 async def generate_filename(path, ext):
@@ -87,6 +88,13 @@ async def handle_books(line: list, db: Session, images: List[Union[UploadFile, N
             book.image = filename
     db.add(book)
     db.commit()
+
+    BookSearchCRUD().create({
+        'id': str(book.id),
+        'title': book.title,
+        'description': book.description,
+        'authors': book.authors
+    })
 
 
 async def write_to_csv(query, func, header, **kwargs):

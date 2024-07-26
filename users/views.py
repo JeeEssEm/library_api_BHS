@@ -10,7 +10,7 @@ from .utils import paginate, converter_user_search, handle_users, user_write_fun
 from books.utils import write_to_csv, remove_file
 import core.exceptions
 from books.utils import handle_csv
-from core.search.schemes import user_index, user_searcher
+from core.search.cruds import UserCRUD as UserSearchCRUD
 
 router = fastapi.APIRouter()
 
@@ -54,6 +54,13 @@ async def edit_user(user_id: int,
         try:
             db.add(user)
             db.commit()
+
+            UserSearchCRUD().update(user.id, {
+                'name': user.name,
+                'middlename': user.middlename,
+                'surname': user.surname,
+                'login': user.login,
+            })
             return fastapi.status.HTTP_200_OK
         except Exception as exc:
             raise core.exceptions.SomethingWentWrongException(exc)
@@ -63,25 +70,24 @@ async def edit_user(user_id: int,
 
 @router.post('/search/{page}')
 async def search_user(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-                      query: str,
-                      year_of_study: int,
                       page: int,
+                      query: str = None,
+                      year_of_study: int = None,
                       db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user):
-        q = user_index.parse_query(query)
-        hits = user_searcher.search(q).hits
-
+        ids = []
         users_query = db.query(models.User)
-        if hits:
-            ids = list(map(lambda item: user_searcher.doc(item[1])['id'][0], hits))
-            users_query = users_query.filter(models.User.id.in_(ids))
-            
-            if year_of_study:
-                users = users.filter(models.User.year_of_study == year_of_study)
-        else:
-            users_query = users_query.filter(False)
+        if query:
+            ids = list(map(lambda item: int(item['id']), UserSearchCRUD().search(query, page)))
+            if not ids:
+                users_query = users_query.filter(False)
+            else:
+                users_query = users_query.filter(models.User.id.in_(ids))
 
-        return paginate(page, users, converter_user_search)
+            if year_of_study:
+                users_query = users_query.filter(models.User.year_of_study == year_of_study)
+
+        return paginate(page, users_query, converter_user_search)
 
     raise core.exceptions.NotEnoughRightsException()
 
@@ -92,17 +98,19 @@ async def delete_user(user_id: int,
                       db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_admin(current_user):
         q = db.query(models.User).filter(models.User.id == user_id)
-        if q.first() is None:
+        user = q.first()
+        if user is None:
             raise fastapi.exceptions.HTTPException(
                 status_code=fastapi.status.HTTP_404_NOT_FOUND,
                 detail='User doesn\'t exist!'
             )
         try:
-            if len(q.first().books) != 0:
+            if len(user.books) != 0:
                 raise fastapi.exceptions.HTTPException(
                     status_code=fastapi.status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail='User hasn\'t returned all books!'
                 )
+            UserSearchCRUD().delete(user.id)
             q.delete()
             db.commit()
             return fastapi.status.HTTP_200_OK
@@ -126,7 +134,7 @@ async def load_users_csv(current_user: Annotated[models.User, fastapi.Depends(ge
         try:
             result = []
             await handle_csv(file=csv_file, handle_func=handle_users, db=db, result=result)
-            return result
+            return {'users': result}
         except Exception as exc:
             raise core.exceptions.SomethingWentWrongException(exc)
 

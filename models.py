@@ -3,10 +3,10 @@ import sqlalchemy
 import enum
 
 
-class Rights(enum.IntEnum):
-    admin = 2
-    librarian = 1
-    student = 0
+class Rights(enum.Enum):
+    admin = 'admin'
+    librarian = 'librarian'
+    student = 'student'
 
 
 class Base(sqlalchemy.orm.DeclarativeBase):

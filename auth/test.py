@@ -6,6 +6,7 @@ import datetime as dt
 from models import User, Rights
 from core.test_db import Base, engine, override_get_db
 from core.db import get_db
+from core.search.cruds import UserCRUD
 
 client = TestClient(app)
 app.dependency_overrides[get_db] = override_get_db
@@ -16,6 +17,9 @@ db = next(override_get_db())
 def test_db():
     Base.metadata.create_all(bind=engine)
     yield
+    for user in db.query(User).all():
+        UserCRUD().delete(user.id)
+
     Base.metadata.drop_all(bind=engine)
 
 
@@ -146,7 +150,7 @@ def test_create_users(test_db):
                 'surname': 'Иванов',
                 'year_of_study': 11,
                 'birthdate': '2006-04-02',
-                'rights': 0
+                'rights': Rights.student.value
             },
             {
                 'name': 'Акакий',
@@ -154,7 +158,7 @@ def test_create_users(test_db):
                 'surname': 'Братишкин',
                 'year_of_study': 11,
                 'birthdate': '2006-05-03',
-                'rights': 0
+                'rights': Rights.student.value
             }
         ]
     }

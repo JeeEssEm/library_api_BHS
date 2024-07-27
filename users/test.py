@@ -9,6 +9,7 @@ from models import User, Rights
 from core.test_db import Base, engine, override_get_db
 from core.db import get_db
 import datetime as dt
+from core.search.cruds import UserCRUD
 
 app.dependency_overrides[get_db] = override_get_db
 db = next(override_get_db())
@@ -20,6 +21,8 @@ client = TestClient(app)
 def test_db():
     Base.metadata.create_all(bind=engine)
     yield
+    for user in db.query(User).all():
+        UserCRUD().delete(user.id)
     Base.metadata.drop_all(bind=engine)
 
 
@@ -54,7 +57,7 @@ def create_admin():
 def test_get_user(test_db):
     login, password, user = create_student()
 
-    resp = client.get(f'/users/{user.id}')
+    resp = client.get(f'/users/info/{user.id}')
     assert resp.status_code == 401
 
     admin_login, admin_password, admin = create_admin()
@@ -68,8 +71,8 @@ def test_get_user(test_db):
 
     resp = client.post('/auth/login', headers=headers, data=data)
 
-    r1 = client.get(f'/users/{user.id}', headers=resp.headers)
-    r2 = client.get(f'/users/{admin.id}', headers=resp.headers)
+    r1 = client.get(f'/users/info/{user.id}', headers=resp.headers)
+    r2 = client.get(f'/users/info/{admin.id}', headers=resp.headers)
 
     assert r1.status_code == 200
     assert r2.status_code == 403
@@ -79,8 +82,8 @@ def test_get_user(test_db):
         'password': admin_password
     }
     resp = client.post('/auth/login', headers=headers, data=data)
-    r1 = client.get(f'/users/{user.id}', headers=resp.headers)
-    r2 = client.get(f'/users/{admin.id}', headers=resp.headers)
+    r1 = client.get(f'/users/info/{user.id}', headers=resp.headers)
+    r2 = client.get(f'/users/info/{admin.id}', headers=resp.headers)
 
     assert r1.status_code == 200
     assert r2.status_code == 200
@@ -104,7 +107,7 @@ def test_edit_user(test_db):
         'surname': 'string',
         'year_of_study': 10,
         'birthdate': '2024-07-07',
-        'rights': int(Rights.admin)
+        'rights': Rights.admin.value
     }
 
     edit_resp = client.put(f'/users/edit/{user.id}', headers=resp.headers, params=form_data)
@@ -123,9 +126,9 @@ def test_edit_user(test_db):
 
     db.refresh(user)
     user_result = user.__dict__
+    user_result['rights'] = user_result['rights'].value
+    form_data['birthdate'] = dt.date.fromisoformat(form_data['birthdate'])
     for key, value in form_data.items():
-        if key == 'birthdate':
-            value = dt.date.fromisoformat(value)
         assert user_result[key] == value
 
 

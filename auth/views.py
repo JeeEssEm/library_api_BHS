@@ -90,7 +90,7 @@ async def whoami(current_user:
         middlename=current_user.middlename or '*******',
         birthdate=current_user.birthdate or '1997-01-01',
         year_of_study=current_user.year_of_study or '11',
-        rights=current_user.rights or 0,
+        rights=current_user.rights or models.Rights.student,
     )
 
 

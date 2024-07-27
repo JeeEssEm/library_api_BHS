@@ -9,10 +9,10 @@ class User(pydantic.BaseModel):
     middlename: typing.Optional[str] = pydantic.Field(None, description='Middle name')
     surname: typing.Optional[str] = pydantic.Field(None, description='Surname')
     year_of_study: typing.Optional[int] = pydantic.Field(
-        None, description='Current year of study (class)')
+        1, description='Current year of study (class)')
     birthdate: typing.Optional[dt.date] = pydantic.Field(None, description='Birth date')
     rights: typing.Optional[Rights] = pydantic.Field(
-        None, description='Rights (admin/librarian/student)')
+        Rights.student, description='Rights (admin/librarian/student)')
 
     @pydantic.field_validator('year_of_study')
     @classmethod

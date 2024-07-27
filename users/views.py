@@ -15,7 +15,12 @@ from core.search.cruds import UserCRUD as UserSearchCRUD
 router = fastapi.APIRouter()
 
 
-@router.get('/info/{user_id}', response_model=auth_schemes.User)
+@router.get(
+    '/info/{user_id}',
+    response_model=auth_schemes.User,
+    summary='Get information about user',
+    description='__Note:__ only _librarian_ and _admin_ have access to this operation'
+)
 async def get_user(user_id: int,
                    current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                    db: Session = fastapi.Depends(get_db)):
@@ -35,7 +40,10 @@ async def get_user(user_id: int,
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.put('/edit/{user_id}')
+@router.put('/edit/{user_id}', description='''
+## Changes old user's data to new
+**Note:** empty fields will not affect already existing data (you can't set null value)
+''')
 async def edit_user(user_id: int,
                     current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                     form: Annotated[auth_schemes.User, fastapi.Depends()],
@@ -68,12 +76,17 @@ async def edit_user(user_id: int,
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.post('/search/{page}')
+@router.post('/search/{page}', description='''
+## Searches through indexed values and returns results by page
+* You can set optional filter for _year_of_study_ to filter users
+* Empty _query_ parameter makes you get all users
+''')
 async def search_user(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                       page: int,
                       query: str = None,
                       year_of_study: int = None,
-                      db: Session = fastapi.Depends(get_db)):
+                      db: Session = fastapi.Depends(get_db),
+                      ):
     if await core.validators.is_librarian(current_user):
         ids = []
         users_query = db.query(models.User)
@@ -92,7 +105,14 @@ async def search_user(current_user: Annotated[models.User, fastapi.Depends(get_c
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.delete('/delete/{user_id}')
+@router.delete(
+    '/delete/{user_id}',
+    description='''
+## This request deletes user from database!
+Only **admin** can do this!
+You **can't** delete user if he hasn't returned **all** books
+    '''
+)
 async def delete_user(user_id: int,
                       current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                       db: Session = fastapi.Depends(get_db)):
@@ -120,13 +140,30 @@ async def delete_user(user_id: int,
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.post('/load_csv', response_model=auth_schemes.CreateUsersResponseModel)
+@router.post(
+    '/load_csv',
+    response_model=auth_schemes.CreateUsersResponseModel,
+    description='''
+## Upload users from csv to database and get login with password for each user
+__Note__: only admin can do this operation\n
+File format (.csv) <br>
+_delimiter = ";"_
+
+**Columns (only in this order!):**
+
+| Name | Middlename | Surname | Birthdate    | year_of_study |
+| ---- | ---------- |  ------ | ------------ | ------------- |
+| John |    Eric    |  Doe    |  2000-01-21  |    10         |
+
+__Note:__ 
+- _birthdate_ field can be only in this format: _"{year}-{month}-{day}"_ (ex. 2000-12-30)
+- _year of study_ field can be integer in range from 1 to 11
+- _rights_ field can be only one of available values (student/librarian/admin)
+    ''')
 async def load_users_csv(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                          csv_file: fastapi.UploadFile,
                          db: Session = fastapi.Depends(get_db)):
-    """ File format (.csv):
-    delimiter = ";"
-    Columns (only in this order!):
+    """ 
     ___
     Name | Middlename | Surname | Birthdate (2000-12-30 or 30.12.2000) | year_of_study
     """
@@ -141,7 +178,16 @@ async def load_users_csv(current_user: Annotated[models.User, fastapi.Depends(ge
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.get('/profiles_csv')
+@router.get('/profiles_csv', description='''
+## Get all user data from database in csv format
+__Note__: only admin can do this operation
+
+Example output:
+| login    | Name | Middlename | Surname | Birthdate    | year_of_study |
+| -------  | ---- | ---------- |  ------ | ------------ | ------------- |
+| sch20241 | John |    Eric    |  Doe    |  2000-01-21  |    10         |
+|  ...     | ...  |    ...     | ...     | ...          | ...           |
+''')
 async def get_users_profiles(
     current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
     background_tasks: fastapi.BackgroundTasks,

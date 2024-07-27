@@ -13,7 +13,10 @@ from sqlalchemy.orm import Session
 router = fastapi.APIRouter()
 
 
-@router.post('/login', response_model=schemes.TokenResponseModel)
+@router.post(
+    '/login', response_model=schemes.TokenResponseModel,
+    summary='Login using login (username field) and password',
+)
 async def login(
     response: fastapi.Response,
     form_data: Annotated[
@@ -43,7 +46,18 @@ async def login(
     )
 
 
-@router.post('/create', response_model=schemes.CreateUsersResponseModel)
+@router.post(
+    '/create', response_model=schemes.CreateUsersResponseModel,
+    summary='Create users by uploading a list of users with specified data',
+    description='''
+Send request with list of user with data (name, middlename, surname, year of study, birthdate and rights)
+and get list with automatically generated logins and passwords for these users.\n
+__Note:__ 
+- _birthdate_ field can be only in this format: _"{year}-{month}-{day}"_ (ex. 2000-12-30)
+- _year of study_ field can be integer in range from 1 to 11
+- _rights_ field can be only one of available values (student/librarian/admin)
+    '''
+)
 async def create_users_route(
         form_data: schemes.CreateUsersRequestModel,
         current_user: Annotated[
@@ -60,7 +74,12 @@ async def create_users_route(
     )
 
 
-@router.post('/update_token', response_model=schemes.TokenResponseModel)
+@router.post(
+    '/update_token',
+    response_model=schemes.TokenResponseModel,
+    summary='Refresh access token',
+    description='Just send request (refresh token must be in cookies) and get new access token'
+    )
 async def update_token(request: fastapi.Request, response: fastapi.Response,
                        db: Session = fastapi.Depends(get_db)):
     refresh_token = request.cookies.get('refresh_token')
@@ -80,7 +99,10 @@ async def update_token(request: fastapi.Request, response: fastapi.Response,
     )
 
 
-@router.get('/whoami', response_model=schemes.WhoamiResponseModel)
+@router.get(
+    '/whoami',
+    response_model=schemes.WhoamiResponseModel,
+    summary='Get information about current user')
 async def whoami(current_user:
                  Annotated[models.User, fastapi.Depends(get_current_user)]):
     return schemes.WhoamiResponseModel(
@@ -94,7 +116,10 @@ async def whoami(current_user:
     )
 
 
-@router.put('/change_password/{user_id}')
+@router.put(
+    '/change_password/{user_id}',
+    description='Change user\'s password. Only __admin__ can do this! No one else!'
+)
 async def change_password(user_id: int,
                           current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                           form: Annotated[schemes.ChangePasswordRequestForm, fastapi.Depends()],

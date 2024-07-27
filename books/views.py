@@ -18,7 +18,15 @@ from core.search.cruds import BookCRUD as BookSearchCRUD
 router = fastapi.APIRouter()
 
 
-@router.get('/info/{book_id}', response_model=book_schemes.BookResponseModel)
+@router.get(
+    '/info/{book_id}',
+    response_model=book_schemes.BookResponseModel,
+    description='''
+## Get information about book
+**Note:**
+- only _admin_ or _librarian_ can access to private books
+- only authenticated user can get public (not private) book
+    ''')
 async def get_book(book_id: int,
                    current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                    db: Session = fastapi.Depends(get_db)):
@@ -41,7 +49,15 @@ async def get_book(book_id: int,
     )
 
 
-@router.get('/media/{book_id}', response_class=fastapi.responses.FileResponse)
+@router.get(
+    '/media/{book_id}',
+    response_class=fastapi.responses.FileResponse,
+    summary='Get book image',
+    description='''
+## Get book image (file)
+**Note:** if book does not has image you will get _not_found_img_    
+'''
+)
 async def get_book_image(book_id: int,
                          current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                          db: Session = fastapi.Depends(get_db)
@@ -71,7 +87,14 @@ async def get_book_image(book_id: int,
         detail='Image doesn\'t exist')
 
 
-@router.post('/create_book')
+@router.post(
+    '/create_book',
+    description='''
+## Create book
+**Params:**
+- _edition_date_ parameter is an integer (ex. 2022), which is year when book was published
+- _amount_ parameter is integer, which describes amount of books of this type in library
+    ''')
 async def create_book(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                       form: Annotated[book_schemes.BookCreateRequestForm, fastapi.Depends()],
                       image: Optional[fastapi.UploadFile] = fastapi.File(
@@ -107,7 +130,14 @@ async def create_book(current_user: Annotated[models.User, fastapi.Depends(get_c
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.put('/edit/{book_id}')
+@router.put(
+    '/edit/{book_id}',
+    description='''
+## Edit existing book in database
+**Params:**
+- _edition_date_ parameter is an integer (ex. 2022), which is year when book was published
+- _amount_ parameter is integer, which describes amount of books of this type in library
+''')
 async def edit_book(book_id: int,
                     current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                     form: Annotated[book_schemes.BookEditRequestForm, fastapi.Depends()],
@@ -144,7 +174,12 @@ async def edit_book(book_id: int,
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.delete('/delete/{book_id}')
+@router.delete(
+    '/delete/{book_id}',
+    description='''
+## Delete book from database!
+**Note:** you **can't** delete book if users, who have not returned book of this type, exists
+    ''')
 async def delete_book(book_id: int,
                       current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                       db: Session = fastapi.Depends(get_db)):
@@ -169,7 +204,13 @@ async def delete_book(book_id: int,
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.post('/give_book')
+@router.post(
+    '/give_book',
+    description='''
+## Give user to book (make him owner)
+**Params:**
+- set return date, when user must return book. Otherwise librarian can find this user in debtors. Librarian can change return date...
+    ''')
 async def give_user_book(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                          form: Annotated[book_schemes.GiveReturnBookForm, fastapi.Depends()],
                          db: Session = fastapi.Depends(get_db)
@@ -191,22 +232,30 @@ async def give_user_book(current_user: Annotated[models.User, fastapi.Depends(ge
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.put('/change_return_date/{relation_id}')
+@router.put(
+    '/change_return_date/{relation_id}',
+    description='''
+**Params:**
+- _return_date_ field can be only in this format: _"{year}-{month}-{day}"_ (ex. 2000-12-30)
+    ''')
 async def change_return_date(
         current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-        relation_id: int,
+        user_id: int,
+        book_id: int,
         form: Annotated[book_schemes.ChangeReturnDateForm, fastapi.Depends()],
         db: Session = fastapi.Depends(get_db)):
     if await core.validators.is_librarian(current_user):
         relation = db.query(models.BookCarriers)\
-            .filter(models.BookCarriers.c.id == relation_id).first()
+            .filter(models.BookCarriers.c.book_id == book_id)\
+            .filter(models.BookCarriers.c.user_id == user_id).first()
         if not relation:
             raise fastapi.exceptions.HTTPException(
                 status_code=fastapi.status.HTTP_404_NOT_FOUND,
                 detail='Relationship doesn\'t exist!'
             )
         query = models.BookCarriers.update().where(
-            models.BookCarriers.c.id == relation_id
+            models.BookCarriers.c.book_id == book_id and
+            models.BookCarriers.c.user_id == user_id
         ).values(return_date=form.return_date)
         db.execute(query)
         db.commit()
@@ -215,22 +264,31 @@ async def change_return_date(
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.delete('/remove_book_relation/{relation_id}')
+@router.delete(
+    '/remove_book_relation/{relation_id}',
+    description='''
+## Delete relation between book and user!
+I.e. user returns book to the library
+    '''
+)
 async def remove_book_relation(
     current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
-    relation_id: int,
+    user_id: int,
+    book_id,
     db: Session = fastapi.Depends(get_db)
 ):
     if await core.validators.is_librarian(current_user):
         relation = db.query(models.BookCarriers)\
-            .filter(models.BookCarriers.c.id == relation_id).first()
+            .filter(models.BookCarriers.c.book_id == book_id)\
+            .filter(models.BookCarriers.c.user_id == user_id).first()
         if not relation:
             raise fastapi.exceptions.HTTPException(
                 status_code=fastapi.status.HTTP_404_NOT_FOUND,
                 detail='Relationship doesn\'t exist!'
             )
         query = models.BookCarriers.delete().where(
-            models.BookCarriers.c.id == relation_id
+            models.BookCarriers.c.book_id == book_id and
+            models.BookCarriers.c.user_id == user_id
         )
         db.execute(query)
         db.commit()
@@ -239,7 +297,13 @@ async def remove_book_relation(
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.get('/user/{user_id}', response_model=book_schemes.BookListForm)
+@router.get(
+    '/user/{user_id}',
+    response_model=book_schemes.BookListForm,
+    description='''
+## Get info about books, which user has
+    '''
+)
 async def get_user_books(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                          user_id: int,
                          db: Session = fastapi.Depends(get_db)):
@@ -260,7 +324,41 @@ async def get_user_books(current_user: Annotated[models.User, fastapi.Depends(ge
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.post('/search/{page}')
+@router.get(
+    '/return_date',
+    response_model=book_schemes.ReturnDateForm,
+    description='''
+## Get return date of book
+    '''
+)
+async def get_book_return_date(
+    current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+    user_id: int,
+    book_id: int,
+    db: Session = fastapi.Depends(get_db)
+):
+    if current_user.id != user_id or not await core.validators.is_librarian(current_user):
+        relation = db.query(models.BookCarriers)\
+            .filter(models.BookCarriers.c.book_id == book_id)\
+            .filter(models.BookCarriers.c.user_id == user_id).first()
+        if not relation:
+            raise fastapi.exceptions.HTTPException(
+                status_code=fastapi.status.HTTP_404_NOT_FOUND,
+                detail='Relationship doesn\'t exist!'
+            )
+        return book_schemes.ReturnDateForm(return_date=relation.return_date)
+
+    raise core.exceptions.NotEnoughRightsException()
+
+
+@router.post(
+    '/search/{page}',
+    description='''
+## Searches through indexed values and returns results by page
+* You can set optional filter for _edition_date_ to filter books
+* Empty _query_ parameter makes you get all books
+    '''
+)
 async def search_book(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                       page: int,
                       query: str = None,
@@ -284,17 +382,28 @@ async def search_book(current_user: Annotated[models.User, fastapi.Depends(get_c
     return paginate(page, book_query, converter_book_scheme)
 
 
-@router.post('/load_csv')
+@router.post(
+    '/load_csv',
+    description='''
+## Upload books from csv to database
+File format (.csv) <br>
+_delimiter = ";"_ <br>
+**Columns (only in this order!):**
+
+| Title | Authors | Description | Amount | Edition date (year) | image (filename) |
+| ----- | ------- | ----------- | ------ | ------------------- | ---------------- |
+| Guide | Jes     | nah         | 1      | 2024                | null             |
+| ...   | ...     | ...         | ...    | ...                 | ...              |
+
+**Note:**
+- _edition_date_ field is an integer (ex. 2022), which is year when book was published
+- _image_ field is field, which has filename of loaded image
+    ''')
 async def load_books(csv_file: fastapi.UploadFile,
                      current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                      images: List[fastapi.UploadFile] = fastapi.File(None, media_type='image/png'),
                      db: Session = fastapi.Depends(get_db)):
-    """ File format (.csv):
-        delimiter = ";"
-        Columns (only in this order!):
-        ___
-        Title | Authors | Description | Amount | Edition date (year) | image (filename)
-    """
+
     if await core.validators.is_librarian(current_user):
         try:
             await handle_csv(file=csv_file, handle_func=handle_books, db=db, images=images)
@@ -305,7 +414,17 @@ async def load_books(csv_file: fastapi.UploadFile,
     raise core.exceptions.NotEnoughRightsException()
 
 
-@router.get('/books_csv')
+@router.get(
+    '/books_csv',
+    description='''
+## Get all books from database in csv format
+
+**Out file example:**
+| Title | Authors | Description | Amount | Edition date (year) | image (filename) |
+| ----- | ------- | ----------- | ------ | ------------------- | ---------------- |
+| Guide | Jes     | nah         | 1      | 2024                | null             |
+| ...   | ...     | ...         | ...    | ...                 | ...              |
+    ''')
 async def get_books_csv(
     current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
     background_tasks: fastapi.BackgroundTasks,

@@ -58,3 +58,7 @@ class SearchBookForm(pydantic.BaseModel):
     title: typing.Optional[str] = None
     authors: typing.Optional[str] = None
     edition_date: typing.Optional[int] = None
+
+
+class ReturnDateForm(pydantic.BaseModel):
+    return_date: dt.date

@@ -1,5 +1,5 @@
-!(flake8)[https://github.com/JeeEssEm/library_api_BHS/actions/workflows/lint.yml/badge.svg]
-!(pytest)[https://github.com/JeeEssEm/library_api_BHS/actions/workflows/test.yml/badge.svg
+![flake8](https://github.com/JeeEssEm/library_api_BHS/actions/workflows/lint.yml/badge.svg)
+![pytest](https://github.com/JeeEssEm/library_api_BHS/actions/workflows/test.yml/badge.svg)
 
 # API for library
 This project is an API for a library, it allows you to track books (school library).

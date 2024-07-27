@@ -50,9 +50,10 @@ async def login(
     '/create', response_model=schemes.CreateUsersResponseModel,
     summary='Create users by uploading a list of users with specified data',
     description='''
-Send request with list of user with data (name, middlename, surname, year of study, birthdate and rights)
+Send request with list of user with data
+ (name, middlename, surname, year of study, birthdate and rights)
 and get list with automatically generated logins and passwords for these users.\n
-__Note:__ 
+__Note:__
 - _birthdate_ field can be only in this format: _"{year}-{month}-{day}"_ (ex. 2000-12-30)
 - _year of study_ field can be integer in range from 1 to 11
 - _rights_ field can be only one of available values (student/librarian/admin)
@@ -79,7 +80,7 @@ async def create_users_route(
     response_model=schemes.TokenResponseModel,
     summary='Refresh access token',
     description='Just send request (refresh token must be in cookies) and get new access token'
-    )
+)
 async def update_token(request: fastapi.Request, response: fastapi.Response,
                        db: Session = fastapi.Depends(get_db)):
     refresh_token = request.cookies.get('refresh_token')

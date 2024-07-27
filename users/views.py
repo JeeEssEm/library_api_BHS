@@ -155,18 +155,15 @@ _delimiter = ";"_
 | ---- | ---------- |  ------ | ------------ | ------------- |
 | John |    Eric    |  Doe    |  2000-01-21  |    10         |
 
-__Note:__ 
-- _birthdate_ field can be only in this format: _"{year}-{month}-{day}"_ (ex. 2000-12-30)
+__Note:__
+- _birthdate_ field can be only in this format: _"{year}-{month}-{day}"_
+ (ex. 2000-12-30)
 - _year of study_ field can be integer in range from 1 to 11
 - _rights_ field can be only one of available values (student/librarian/admin)
     ''')
 async def load_users_csv(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                          csv_file: fastapi.UploadFile,
                          db: Session = fastapi.Depends(get_db)):
-    """ 
-    ___
-    Name | Middlename | Surname | Birthdate (2000-12-30 or 30.12.2000) | year_of_study
-    """
     if await core.validators.is_admin(current_user):
         try:
             result = []

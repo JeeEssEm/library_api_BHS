@@ -14,6 +14,7 @@ from config import STATIC_PATH
 from users.utils import paginate
 import os
 from core.search.cruds import BookCRUD as BookSearchCRUD
+import datetime as dt
 
 router = fastapi.APIRouter()
 
@@ -55,7 +56,7 @@ async def get_book(book_id: int,
     summary='Get book image',
     description='''
 ## Get book image (file)
-**Note:** if book does not has image you will get _not_found_img_    
+**Note:** if book does not has image you will get _not_found_img_
 '''
 )
 async def get_book_image(book_id: int,
@@ -209,7 +210,8 @@ async def delete_book(book_id: int,
     description='''
 ## Give user to book (make him owner)
 **Params:**
-- set return date, when user must return book. Otherwise librarian can find this user in debtors. Librarian can change return date...
+- set return date, when user must return book. Otherwise librarian can find this user in debtors.
+ Librarian can change return date...
     ''')
 async def give_user_book(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                          form: Annotated[book_schemes.GiveReturnBookForm, fastapi.Depends()],
@@ -398,12 +400,14 @@ _delimiter = ";"_ <br>
 **Note:**
 - _edition_date_ field is an integer (ex. 2022), which is year when book was published
 - _image_ field is field, which has filename of loaded image
+- if you don't load images **do not** send empty value
     ''')
 async def load_books(csv_file: fastapi.UploadFile,
                      current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                      images: List[fastapi.UploadFile] = fastapi.File(None, media_type='image/png'),
                      db: Session = fastapi.Depends(get_db)):
-
+    if not isinstance(images, list):
+        images = []
     if await core.validators.is_librarian(current_user):
         try:
             await handle_csv(file=csv_file, handle_func=handle_books, db=db, images=images)
@@ -444,5 +448,57 @@ async def get_books_csv(
 
         except Exception as exc:
             raise core.exceptions.SomethingWentWrongException(exc)
+
+    raise core.exceptions.NotEnoughRightsException()
+
+
+@router.get(
+    '/debtors',
+    response_model=book_schemes.DebtorsListForm,
+    description='''
+## Get all debtors (users who did not return book within specified date)
+**Param:**
+- _return_date_ param can be filled by your date. Default date is today
+''')
+async def get_debtors(
+    current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
+    return_date: dt.date = None,
+    db: Session = fastapi.Depends(get_db)
+):
+    if return_date is None:
+        return_date = dt.date.today()
+
+    if await core.validators.is_librarian(current_user):
+        query_result = db.query(models.BookCarriers, models.User, models.Book)\
+            .filter(models.BookCarriers.c.return_date < return_date)\
+            .filter(models.BookCarriers.c.user_id == models.User.id)\
+            .filter(models.BookCarriers.c.book_id == models.Book.id)\
+            .all()
+
+        temp = {}
+        for _, book_id, user_id, date, user, book in query_result:
+            book = book_schemes.DebtorBookForm(
+                id=book_id,
+                title=book.title,
+                authors=book.authors,
+                edition_date=book.edition_date,
+                return_date=date
+            )
+            if temp.get(user_id):
+                temp[user_id].expired_books.append(book)
+            else:
+                debtor = book_schemes.DebtorForm(
+                    id=user_id,
+                    name=user.name or '*******',
+                    middlename=user.middlename or '*******',
+                    surname=user.surname or '*******',
+                    year_of_study=user.year_of_study,
+                    expired_books=[]
+                )
+
+                debtor.expired_books.append(book)
+                temp[user_id] = debtor
+
+        return book_schemes.DebtorsListForm(debtors=temp.values())
 
     raise core.exceptions.NotEnoughRightsException()

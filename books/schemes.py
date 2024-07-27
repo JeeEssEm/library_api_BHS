@@ -62,3 +62,25 @@ class SearchBookForm(pydantic.BaseModel):
 
 class ReturnDateForm(pydantic.BaseModel):
     return_date: dt.date
+
+
+class DebtorBookForm(pydantic.BaseModel):
+    id: int
+    title: str
+    authors: str
+    edition_date: int
+    return_date: dt.date
+
+
+class DebtorForm(pydantic.BaseModel):
+    id: int
+    name: str
+    surname: str
+    middlename: str
+    year_of_study: int
+
+    expired_books: typing.List[DebtorBookForm]
+
+
+class DebtorsListForm(pydantic.BaseModel):
+    debtors: typing.List[DebtorForm]

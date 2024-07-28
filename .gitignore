@@ -165,3 +165,4 @@ app.db
 test.db
 /index/*
 /static/*
+/.idea/*

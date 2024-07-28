@@ -1,6 +1,3 @@
-
-# delete user: check rights and changes
-
 from main import app
 from fastapi.testclient import TestClient
 import pytest

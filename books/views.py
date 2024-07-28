@@ -93,6 +93,7 @@ async def get_book_image(book_id: int,
     description='''
 ## Create book
 **Params:**
+- _image_ parameter should be sent with **empty value** if image is not loaded
 - _edition_date_ parameter is an integer (ex. 2022), which is year when book was published
 - _amount_ parameter is integer, which describes amount of books of this type in library
     ''')
@@ -126,7 +127,12 @@ async def create_book(current_user: Annotated[models.User, fastapi.Depends(get_c
             'authors': book.authors
         })
 
-        return fastapi.status.HTTP_200_OK
+        return book_schemes.ShortBookForm(
+            id=book.id,
+            title=book.title,
+            authors=book.authors,
+            edition_date=book.edition_date
+        )
 
     raise core.exceptions.NotEnoughRightsException()
 
@@ -235,7 +241,7 @@ async def give_user_book(current_user: Annotated[models.User, fastapi.Depends(ge
 
 
 @router.put(
-    '/change_return_date/{relation_id}',
+    '/change_return_date',
     description='''
 **Params:**
 - _return_date_ field can be only in this format: _"{year}-{month}-{day}"_ (ex. 2000-12-30)
@@ -267,7 +273,7 @@ async def change_return_date(
 
 
 @router.delete(
-    '/remove_book_relation/{relation_id}',
+    '/remove_book_relation',
     description='''
 ## Delete relation between book and user!
 I.e. user returns book to the library
@@ -309,7 +315,7 @@ async def remove_book_relation(
 async def get_user_books(current_user: Annotated[models.User, fastapi.Depends(get_current_user)],
                          user_id: int,
                          db: Session = fastapi.Depends(get_db)):
-    if await core.validators.is_librarian(current_user):
+    if await core.validators.is_librarian(current_user) or user_id == current_user.id:
         user = db.query(models.User).filter(models.User.id == user_id).first()
         if not user:
             raise core.exceptions.UserDoesNotExistException()
@@ -339,7 +345,7 @@ async def get_book_return_date(
     book_id: int,
     db: Session = fastapi.Depends(get_db)
 ):
-    if current_user.id != user_id or not await core.validators.is_librarian(current_user):
+    if current_user.id == user_id or await core.validators.is_librarian(current_user):
         relation = db.query(models.BookCarriers)\
             .filter(models.BookCarriers.c.book_id == book_id)\
             .filter(models.BookCarriers.c.user_id == user_id).first()
@@ -492,7 +498,7 @@ async def get_debtors(
                     name=user.name or '*******',
                     middlename=user.middlename or '*******',
                     surname=user.surname or '*******',
-                    year_of_study=user.year_of_study,
+                    year_of_study=user.year_of_study or 11,
                     expired_books=[]
                 )
 

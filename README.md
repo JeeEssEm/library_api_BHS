@@ -1,57 +1,56 @@
-# API для библиотеки
-...
+![flake8](https://github.com/JeeEssEm/library_api_BHS/actions/workflows/lint.yml/badge.svg)
+![pytest](https://github.com/JeeEssEm/library_api_BHS/actions/workflows/test.yml/badge.svg)
 
-## Routes
-### Работа с аккаунтом
-- `POST("/users/login")`
- INPUT: {"login": …, "password": …}
- OUTPUT: {"refresh_token": …, "access_token": …}
-- `POST("/users/refresh_access_token")`
-INPUT: {"refresh_token": …}
-OUTPUT: {"access_token": …}
-- `POST("/users/create")`
- Validators: is_admin
- INPUT: [{"name": …, "surname": …, "middlename": …, "birth": …, "year_of_study": …}, …] || .csv?
- OUTPUT: [{"name": …, "surname": …, "middlename": …, "birth": …, "year_of_study": …, "login": …, "password": …}, …] || .csv?
-- `PUT("/users/edit/{id}")  # изменение основных данных пользователя`
-Validators: is_admin
-INPUT: {"name": …, "surname": …, "middlename": …, "birth": …, "year_of_study": …}
-- `GET("/users/{id}")  # информация об основных данных пользователя`
-OUTPUT: {"name": …, "surname": …, "middlename": …, "birth": …, "year_of_study": …}
-- `PUT("/users/change_password/{id}")`
-Validators: is_admin
-INPUT: {"new_password": …}
+# API for library
+This project is an API for a library, it allows you to track books (school library).
+You can:
+* give book to user, load books, load users as _admin or librarian_
+* check availability of a book as a student
+* get list of students who has not returned book at appointment date
 
-- `GET("/users/search")  # поиск среди пользователей по ФИО и году обучения`
-INPUT: {"name": …, "surname": …, "middlename": …, "birth": …, "year_of_study": …}
-OUTPUT: [{…}, {…}, …]
-- `DELETE("/users/delete/{id}")  # удаление пользователя из базы`
-Validators: is_admin
-### Работа с книгами
-- `GET("/books/{id}")` | Validator: is_book_exists
-- `POST("/books/create_book")` | Validator: is_librarian + is_book_exists
-- `PUT("/books/edit/{id}")` | Validator: is_librarian + is_book_exists
-- `DELETE("books/delete/{id}")` | Validator: is_librarian + is_book_exists
+# Quick start
+> Required: [python 3.9](https://www.python.org/downloads/release/python-3910/) 
+#### 1. Clone repo
+```git clone https://github.com/JeeEssEm/library_api_BHS```  
+```cd library_api_BHS```
+#### 2. Create virtual environment (venv)
+```python -m venv .venv```
+#### 3. Venv activation
+> **Note:** in example venv activates in Windows using Powershell.  
+> Solution for **Unix or MacOS** using **bash**:  
+> ```source .venv/bin/activate```
 
-- `POST("/books/give_to_user")  # выдача книги ученику`
-Validators: is_librarian + is_date_correct
-INPUT: {"user_id": …, "book_id": …, "return_date": …}
-- `PUT("/books/change_return_date")  # изменить срок сдачи книги`
-Validators: is_librarian + is_date_correct + is_book_exists
-INPUT: {"user_id": …, "book_id": …, "new_return_date": …}
-- `DELETE("/books/returned") # ученик вернул книгу <=> удалить связь ученика и книги из базы`
-Validators: is_librarian + is_book_exists + is_user_exists
-INPUT: {"user_id": …, "book_id": …}
-- `GET("/books/owns/{user_id}") # какие книги сейчас находятся у ученика`
-Validators: (is_librarian || user_id == current_user.id) + is_user_exists
-OUTPUT: [{"book_id": …, "return_date": ..}, {…}, …]
+```.\venv\Scripts\Activate.ps1```
 
+#### 4. Install dependencies (using pip)
+```pip install -r requirements.txt```
 
-- `GET("/books/search/{title}")  # поиск книги по названию`
-- `GET("/books/left_in_stock/{id}")  # сколько книг определённого типа осталось в наличии`
-- `GET("/books/{page}")  # список всех книг. Использование пагинации`
-- `POST("/books/load_csv") # загрузка книг из csv файла в базу`
-Validators: is_librarian + is_data_corrupted
+#### 5. Environment variables
+You can find example of **.env** in **_.env.example_**
+```
+DB_URL=sqlite:///./app.db      # url for your database
+PASSWORD_LENGTH=8              # default password length for password generator
+SECRET_KEY=jk-asd23asd-asd231  # secret key
+REFRESH_TOKEN_EXPIRE_DAYS=30   # time after which access token will expire
+ACCESS_TOKEN_EXPIRE_MINUTES=30 # time after which access token will expire
+ITEMS_PER_PAGE=10              # shown items per page
+STATIC_PATH=static             # path for static files (images, etc)
+SEARCHER_PATH=index            # path for search engine (folder for storing indexed items)
+```
+#### 6. Run project
+```uvicorn main:app --reload```
 
-- `GET("/books/debtors/{page}") # получить список должников (тех, кто не вернул книгу вовремя). Использовать пагинацию`
-Validators: is_librarian
+# Usage
+#### 1. How to create super user (admin):
+> python createsuperuser.py
+
+#### 2. How to open swagger:
+> http://127.0.0.1:8000/docs
+
+#### 3. Upload users and books using csv:
+use specified upload formats (only in this order):
+* for books:
+  > Title | Authors | Description | Amount | Edition date (year) | image (filename) 
+* for users:
+  > Name | Middlename | Surname | Birthdate (2000-12-30 or 30.12.2000) | year_of_study (1 <= n <= 11)
+#### 4. More details in swagger...
